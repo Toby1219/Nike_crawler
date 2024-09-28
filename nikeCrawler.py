@@ -151,7 +151,6 @@ class Browser:
             await self.page.wait_for_selector('[data-testid="product-card"]')
             elements = await self.page.query_selector_all(selector=selector)
             new_length = len(elements)-1
-            print(new_length)
             await elements[new_length].scroll_into_view_if_needed()
             await self.page.wait_for_timeout(2000)
             if previous_length == new_length:
