@@ -264,17 +264,20 @@ class Browser:
             if count == 40:
                 break
     @timer
-    async def main(self):
+    async def main(self) -> None:
+        """Main function to run the browser operations"""
         async with async_playwright() as self.playwright:
-            await self.browser()
-            
-            await self.select_location()
-            await self.select_tab()
-
-            await self._scroll()
-            await self.get_item_listing()
-
-            await self.page.close()
+            try:
+                await self.browser()
+                await self.select_location()
+                await self.select_tab()
+                await self._scroll()
+                await self.get_item_listing()
+            except Exception as e:
+                log.error(f"Error during browser operations: {e}", exc_info=True)
+            finally:
+                if self.page:
+                    await self.page.close()
 
 
 if __name__ == '__main__':
