@@ -13,6 +13,9 @@ import time
 
 
 def logs():
+    """
+    Sets up logging using Rich and outputs logs to both the console and a file named 'scrape.log'.
+    """
     frame = inspect.currentframe().f_back 
     file_name = os.path.basename(frame.f_globals['__file__'])
     logger_name = f"{file_name}"
@@ -30,11 +33,15 @@ def logs():
    
     return logger
 
+
 def timer(func):
+    """
+    A decorator that measures the execution time of asynchronous functions.
+    """
     @functools.wraps(func)
-    async def wrapper(*agrs, **kwargs):
+    async def wrapper(*args, **kwargs):
         start = time.perf_counter()
-        await func(*agrs, **kwargs)
+        await func(*args, **kwargs)
         end = time.perf_counter()
         total = end - start
         print(f"Execution time: {round(total, 2)}")
@@ -45,7 +52,9 @@ log = logs()
 
 @dataclass
 class Nike_Men:
-    """ A ```DATACLASS``` obj """
+    """
+    A DataClass representing the structure of the data to be scraped.
+    """
     Name: str = None
     Sbtitle_name: str = None
     Price: float = None
@@ -59,25 +68,40 @@ class Nike_Men:
 
 @dataclass
 class SaveData:
+    """
+    A DataClass for managing the storage of scraped data in various formats (JSON, CSV, Excel, SQLite).
+    """
     items: Nike_Men = None
     file: str = ''
-    folder:str = ''
-    _path:str = ''
+    folder: str = ''
+    _path: str = ''
     data_list: list[Nike_Men] = field(default_factory=list)
    
-    def add_item(self, ):
+    def add_item(self):
+        """
+        Adds an item to the data list.
+        """
         return self.data_list.append(self.items)
    
     def create_folder(self):
+        """
+        Creates a folder for storing the data if it doesn't exist.
+        """
         if not os.path.exists(self.folder):
             os.makedirs(self.folder)
         self._path = f"{self.folder}/{self.file}"
         return self._path
     
     def dataframe(self):
+        """
+        Converts the data list to a Pandas DataFrame.
+        """
         return pd.json_normalize((asdict(data) for data in self.data_list), sep='_')
 
     def save_to_json(self):
+        """
+        Saves the data to a JSON file.
+        """
         if not os.path.exists(f'{self._path}.json'):
             self.dataframe().to_json(f'{self._path}.json', orient='records', index=False, indent=3)
         else:
@@ -87,19 +111,28 @@ class SaveData:
             update_df.to_json(f"{self._path}.json", orient='records', indent=2)
 
     def save_to_csv(self):
+        """
+        Saves the data to a CSV file.
+        """
         if os.path.exists(f'{self._path}.csv'):
             self.dataframe().to_csv(f"{self._path}.csv", index=False, mode='a', header=False)
         else:
             self.dataframe().to_csv(f'{self._path}.csv', index=False)
     
     def save_to_excel(self):
+        """
+        Saves the data to an Excel file.
+        """
         if not os.path.exists(f'{self._path}.xlsx'):
             self.dataframe().to_excel(f'{self._path}.xlsx', index=False)
         else:
             with pd.ExcelWriter(f'{self._path}.xlsx', mode='a', engine='openpyxl', if_sheet_exists='overlay') as writer:
                 self.dataframe().to_excel(writer, sheet_name='Sheet1', index=False, header=False, startrow=writer.sheets['Sheet1'].max_row)
 
-    def save_to_sqlite(self):        
+    def save_to_sqlite(self):
+        """
+        Saves the data to an SQLite database.
+        """
         conn = sqlite3.connect(f"{self._path}.db")
         cur = conn.cursor()
         for dats in self.data_list:
@@ -114,27 +147,36 @@ class SaveData:
             conn.close()
     
     def save_all(self):
-        log.info('Saveing data...')
+        """
+        Saves the data in all formats (JSON, CSV, Excel, SQLite).
+        """
+        log.info('Saving data...')
         self.add_item()
         self.create_folder()
         self.save_to_json()
         self.save_to_csv()
         self.save_to_excel()
         self.save_to_sqlite()
-        log.debug('Done saveing...')
+        log.debug('Done saving...')
 
 class Browser:
     def __init__(self, url: str) -> None:
-        self.playwright:Playwright
+        """
+        Initializes the Browser class with the given URL.
+        """
+        self.playwright: Playwright
         self.page: Page 
         self.url: str = url
 
-    async def browser(self)->None:
+    async def browser(self) -> None:
+        """
+        Launches the browser and navigates to the specified URL.
+        """
         log.info("Starting Browser")
         browser = await self.playwright.firefox.launch(headless=True)
         context = await browser.new_context(
             viewport={'width': 650, 'height': 540},
-            user_agent = UserAgent().random
+            user_agent=UserAgent().random
         )
         self.page = await context.new_page()
         
@@ -142,25 +184,31 @@ class Browser:
         await self.page.goto(self.url, timeout=80000)
         self.page.set_default_navigation_timeout(90000)
         await self.page.wait_for_load_state("networkidle")
-       
+    
     async def _scroll(self):
+        """
+        Scrolls down the page to load more products.
+        """
         await self.page.wait_for_load_state()
         previous_length = 0
         for _ in range(20):
             selector = '//div[@data-testid="product-card"]/div/figure/a'
             await self.page.wait_for_selector('[data-testid="product-card"]')
             elements = await self.page.query_selector_all(selector=selector)
-            new_length = len(elements)-1
+            new_length = len(elements) - 1
             await elements[new_length].scroll_into_view_if_needed()
             await self.page.wait_for_timeout(2000)
             if previous_length == new_length:
-                log.debug(f"Total Items:{new_length}")
+                log.debug(f"Total Items: {new_length}")
                 break
             previous_length = new_length
-        log.info('Done scrooling')
+        log.info('Done scrolling')
   
     async def select_location(self):
-        log.debug("Navigateing To Product")
+        """
+        Selects the location on the website to navigate to the desired product category.
+        """
+        log.debug("Navigating To Product")
         page = self.page
         await page.wait_for_load_state()
         try:
@@ -180,6 +228,9 @@ class Browser:
             log.error(f"{e}", exc_info=True)
             
     async def select_tab(self):
+        """
+        Selects the 'Shoes' tab on the product page.
+        """
         page = self.page
         await self.page.wait_for_load_state()
         try:
@@ -189,13 +240,16 @@ class Browser:
             log.error(f"{e}", exc_info=True)
         await self.page.wait_for_timeout(3000)
         log.debug("Done Navigating...")
-
+    
     async def scrape_data(self):
+        """
+        Scrapes the product data from the page.
+        """
         await self.page.wait_for_timeout(2000)
         name = await self.page.locator('h1#pdp_product_title').inner_text()
         subtitle_name = await self.page.locator('h1#pdp_product_subtitle').inner_text()
         price = await self.page.get_by_test_id("currentPrice-container").first.inner_text()
-        discription = await self.page.get_by_test_id("product-description").inner_text()
+        description = await self.page.get_by_test_id("product-description").inner_text()
         try:
             colors_raw = await self.page.get_by_test_id("product-description-color-description").inner_text()
             colors = colors_raw.replace('Shown: ', '').strip()
@@ -222,14 +276,14 @@ class Browser:
             sizes = await self.page.locator(sel).all()
             size = [await x.inner_text() for x in sizes]
         except:
-            size = 'No available sizes yet or comming soon'
+            size = 'No available sizes yet or coming soon'
         url_ = self.page.url
         data = Nike_Men(
             Name=name,
             Sbtitle_name=subtitle_name,
             Price=price,
             Available_Sizes=size,
-            Discription=discription,
+            Discription=description,
             Colors=colors,
             Product_Id=prod_id,
             Total_Review=review,
@@ -242,12 +296,15 @@ class Browser:
         store.save_all()
 
     async def get_item_listing(self):
+        """
+        Retrieves the list of product links from the product listing page.
+        """
         page = self.page
         selector = '//div[@data-testid="product-card"]/div/figure/a[@class="product-card__link-overlay"]'
         await page.wait_for_selector('[data-testid="product-card"]')    
         links = await page.locator(selector).all()
         log.info(f'found total of {len(links)} links from product listing')
-        urls:list[str] = []
+        urls: list[str] = []
         count = 0
         for _, l in enumerate(links):
             urls_ = await l.get_attribute('href')
@@ -263,9 +320,12 @@ class Browser:
             count += 1
             if count == 40:
                 break
+
     @timer
     async def main(self) -> None:
-        """Main function to run the browser operations"""
+        """
+        Main function to run the browser operations.
+        """
         async with async_playwright() as self.playwright:
             try:
                 await self.browser()
@@ -282,7 +342,7 @@ class Browser:
 
 if __name__ == '__main__':
     try:
-        url='https://www.nike.com/'
+        url = 'https://www.nike.com/'
         b = Browser(url)
         asyncio.run(b.main())    
     except Exception as e:
